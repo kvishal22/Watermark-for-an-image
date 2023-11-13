@@ -6,12 +6,18 @@ import com.kanna.imageMerge.utils.ImageUtil;
 import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
 import net.coobird.thumbnailator.geometry.Positions;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.Raster;
 import java.io.*;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +42,9 @@ public class ImageService {
         }
     public byte[] downloadImage(Long id) {
         Optional<Image> dbImageData = imageRepo.findById(id);
+       if(dbImageData.isEmpty()){
+            throw new IllegalArgumentException();
+        }
          return ImageUtil.decompressImage(dbImageData.get().getImageData());
     }
     public List<Image> getAll(){
@@ -45,10 +54,20 @@ public class ImageService {
         imageRepo.deleteById(id);
         return "deleted";
     }
-    public Optional<Image> oneImage(Long id){
-        return imageRepo.findById(id);
+    public ResponseEntity<byte[]>  oneImage(Long id){
+        Optional<Image> optionalImage = imageRepo.findById(id);
+        if (optionalImage.isPresent()) {
+            Image image = optionalImage.get();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.IMAGE_PNG);
+            headers.setContentLength(image.getImageData().length);
+            return new ResponseEntity<>(image.getImageData(), headers, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
     }
     public void saveImagewithIcon(MultipartFile file) throws IOException {
+
         byte[] orgImageData = file.getBytes();
         byte[] modifiedImageData = addPlayIcon(orgImageData);
 
@@ -58,7 +77,6 @@ public class ImageService {
        imageRepo.save(Image.builder()
                 .imageData(modifiedImageData)
                 .build());
-
     }
 
     private byte[] addPlayIcon(byte[] orgImageData) throws IOException {
@@ -66,19 +84,24 @@ public class ImageService {
         ByteArrayInputStream inputStream = new ByteArrayInputStream(orgImageData);
         BufferedImage orgImage = ImageIO.read(inputStream);
 
-        InputStream playIconStream = getClass().getResourceAsStream("/images/icons8-play-64.png");
+        InputStream playIconStream = getClass().getResourceAsStream("/images/playIcon.png");
+        assert playIconStream != null;
         BufferedImage playIcon = ImageIO.read(playIconStream);
+
+        BufferedImage resizedPlayIcon = Thumbnails.of(playIcon)
+                .size(40, 40)
+                .asBufferedImage();
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         Thumbnails.of(orgImage)
                 .size(orgImage.getWidth(),orgImage.getHeight())
-                .watermark(Positions.BOTTOM_RIGHT, playIcon, 1.0f)
                 .outputQuality(1.0)
                 .outputFormat("png")
+                .watermark(Positions.BOTTOM_LEFT, resizedPlayIcon, 1.0f)
+
                 .toOutputStream(outputStream);
 
         log.info("output stream  {}",outputStream.size());
-
 
        return outputStream.toByteArray();
 
@@ -86,6 +109,5 @@ public class ImageService {
     public void some(){
         imageRepo.findAll().stream().map(Image::getId).forEach(id->log.info("id {}",id));
     }
-
 
 }

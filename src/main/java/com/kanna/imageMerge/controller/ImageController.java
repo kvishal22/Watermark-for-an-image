@@ -37,7 +37,7 @@ public class ImageController {
         }
     }
     @GetMapping("/all/{id}")
-    public ResponseEntity<?> downloadImage(@PathVariable Long id){
+    public ResponseEntity<byte[]> downloadImage(@PathVariable Long id){
         byte[] imageData=imageService.downloadImage(id);
         return ResponseEntity.status(HttpStatus.OK)
                 .contentType(MediaType.valueOf("image/png"))
@@ -51,20 +51,12 @@ public class ImageController {
     public String del(@PathVariable Long id){
         return imageService.delete(id);
         }
-        @GetMapping("/{id}")
+    @GetMapping(value = "/{id}", produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> getImage(@PathVariable Long id) {
-            Optional<Image> optionalImage = imageService.oneImage(id);
-            if (optionalImage.isPresent()) {
-                Image image = optionalImage.get();
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.IMAGE_PNG);
-                return new ResponseEntity<>(image.getImageData(), headers, HttpStatus.OK);
-            } else {
-                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-            }
-        }
+        return imageService.oneImage(id);
+    }
         @PostMapping("/icon")
-    public ResponseEntity<?> saveImage(@RequestParam("file")MultipartFile file) throws IOException {
+    public ResponseEntity<String> saveImage(@RequestParam("file")MultipartFile file) throws IOException {
         imageService.saveImagewithIcon(file);
         return ResponseEntity.ok().body("saved");
         }
